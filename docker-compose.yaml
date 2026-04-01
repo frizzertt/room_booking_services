@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rbk}
+      POSTGRES_USER: ${POSTGRES_USER:-rbk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rbk}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rbk} -d ${POSTGRES_DB:-rbk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rbk:rbk@db:5432/rbk}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-key}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-720}
+    ports:
+      - "8080:8080"
