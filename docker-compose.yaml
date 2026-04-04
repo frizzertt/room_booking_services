@@ -1,26 +1,38 @@
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-rbk}
-      POSTGRES_USER: ${POSTGRES_USER:-rbk}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rbk}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rbk} -d ${POSTGRES_DB:-rbk}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    ports:
-      - "5432:5432"
-
-  api:
+  rbk-api-service:
+    container_name: rbk-api-service
+    image: rbk-fastapi:1.0.0
     build: .
+    command: sh -c "python -m db.init_db && uvicorn main:app --host=0.0.0.0 --port=8080"
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-rbk}:${POSTGRES_PASSWORD:-rbk}@db:5432/${POSTGRES_DB:-rbk}
+      - JWT_SECRET=${JWT_SECRET:-super-secret-key}
+      - JWT_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES:-720}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - internal
+
+  db:
+    image: postgres:16-alpine
+    container_name: rbk-postgres
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://rbk:rbk@db:5432/rbk}
-      JWT_SECRET: ${JWT_SECRET:-super-secret-key}
-      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-720}
+      POSTGRES_USER: ${POSTGRES_USER:-rbk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rbk}
+      POSTGRES_DB: ${POSTGRES_DB:-rbk}
     ports:
-      - "8080:8080"
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER:-rbk} -d ${POSTGRES_DB:-rbk}'"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+
+networks:
+  internal:
